@@ -196,7 +196,7 @@ class Command
             $config['repositories'] = array();
         }
         
-        $version = preg_match('/^\d+\.\d+\.\d+$/g', $branch) ? $branch: '0.0.1';
+        $version = preg_match('/^\d+\.\d+\.\d+$/', $branch) ? $branch: '0.0.1';
         
         array_push($config['repositories'], array(
             'type' => 'package',

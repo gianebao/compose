@@ -3,6 +3,7 @@
 class Command
 {
     const _FN_PREFIX = 'action_';
+    const _TEXT_NOT_REQUIRED = '--NOT REQUIRED--';
     private static $_config = 'composer.json';
     
     public static function factory($execute, $params)
@@ -176,7 +177,7 @@ class Command
         Command::_bump_config($filter, $level, -1);
     }
     
-    public static function action_install($name, $require, $repo, $branch)
+    public static function action_install($name, $repo, $branch)
     {
         $config = Command::_get_config();
         
@@ -192,7 +193,7 @@ class Command
         
         if (empty($config['repositories']))
         {
-            $config['repositories'];
+            $config['repositories'] = array();
         }
         
         array_push($config['repositories'], array(
@@ -210,6 +211,13 @@ class Command
                 )
             )
         ));
+        
+        if (empty($config['repositories']))
+        {
+            $config['require'] = array();
+        }
+        
+        $config['require'][$name] = '0.*.*';
     }
     
     public static function action_remove($name)
@@ -259,6 +267,35 @@ class Command
         Command::_put_config($config);
     }
     
+    public static function action_set_require($name, $require)
+    {
+        $config = Command::_get_config();
+        
+        $find = Command::_find($name, function (& $item) {});
+        
+        if (false === $find)
+        {
+            Extra::fatal(
+                'Cannot find package ":name".',
+                array(':name' => $name)
+            );
+        }
+        
+        if (empty($config['repositories']))
+        {
+            $config['require'] = array();
+        }
+        
+        Extra::msg('Updated ' . Extra::yellow("[ Package: :package ]\n")
+            . Extra::green('Require') . " : :require_old -> :require_new", array(
+                ':package'         => $name,
+                ':require_old'      => empty($config['require'][$name])
+                    ? Extra::red(Command::_TEXT_NOT_REQUIRED)
+                    : $config['require'][$name],
+                ':require_new'      => $config['require'][$name] = $require
+        ));
+    }
+    
     public static function action_list($mode = '--simple', $filter = null)
     {
         switch ($mode)
@@ -295,7 +332,7 @@ class Command
                     ':branch'  => $item['source']['reference'],
                     ':require' => !empty($config['require'][$item['name']])
                         ? $config['require'][$item['name']]
-                        : Extra::red('--NOT REQUIRED--')
+                        : Extra::red(Command::_TEXT_NOT_REQUIRED)
                 ));
             }
         });

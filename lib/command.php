@@ -236,6 +236,11 @@ class Command
             );
         }
         
+        if (isset($config['require'][$name]))
+        {
+            unset($config['require'][$name]);
+        }
+        
         Command::_put_config($config);
     }
     

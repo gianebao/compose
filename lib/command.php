@@ -196,11 +196,13 @@ class Command
             $config['repositories'] = array();
         }
         
+        $version = preg_match('/^\d+\.\d+\.\d+$/g', $branch) ? $branch: '0.0.1';
+        
         array_push($config['repositories'], array(
             'type' => 'package',
             'package' => array(
                 'name'    => $name,
-                'version' => '0.0.1',
+                'version' => $version,
                 'autoload' => array(
                     'psr-4' => array ('' => '')
                 ),
@@ -217,7 +219,7 @@ class Command
             $config['require'] = array();
         }
         
-        $config['require'][$name] = '>1.0.0';
+        $config['require'][$name] = $version;
         Command::_put_config($config);
     }
     

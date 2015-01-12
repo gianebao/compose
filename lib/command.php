@@ -217,7 +217,7 @@ class Command
             $config['require'] = array();
         }
         
-        $config['require'][$name] = '0.*.*';
+        $config['require'][$name] = '>1.0.0';
         Command::_put_config($config);
     }
     

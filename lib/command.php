@@ -218,6 +218,7 @@ class Command
         }
         
         $config['require'][$name] = '0.*.*';
+        Command::_put_config($config);
     }
     
     public static function action_remove($name)

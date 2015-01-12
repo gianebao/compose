@@ -51,6 +51,11 @@ class Command
         return $config;
     }
     
+    private static function _put_config($config)
+    {
+        file_put_contents(Command::$_config, json_encode($config, JSON_PRETTY_PRINT));
+    }
+    
     private static function _each_config($callback)
     {
         $config = Command::_get_config();
@@ -62,13 +67,36 @@ class Command
         
         for ($i = 0, $count = count($config['repositories']); $i < $count; $i ++)
         {
-            $result = $callback($config['repositories'][$i], $config);
+            $result = $callback($config['repositories'][$i], $config, $i);
+            
+            if (false === $result)
+            {
+                break;
+            }
         }
+        
+        return $config;
     }
     
-    private static function _put_config($config)
+    /**
+     * Returns the exact item in the resources
+     */
+    private static function _find($filter, $fn)
     {
+        $result_count = 0;
         
+        $results = Command::_each_config(function (& $item, & $config, $i) use ($filter, $fn, & $result_count)
+        {
+            if ($filter === $item['package']['name'])
+            {
+                $result_count ++;
+                $fn($item, $config, $i);
+                
+                return false;
+            }
+        });
+        
+        return !empty($result_count) ? $results: false;
     }
     
     public static function action_help()
@@ -77,29 +105,158 @@ class Command
         echo "\n";
     }
     
-    public static function action_up()
+    private static function _increment($val, $steps = 1)
     {
+        $val = $steps + (int) $val;
         
+        return 0 > $val ? 0: $val;
     }
     
-    public static function action_down()
+    private static function _bump_config($filter, $level = '--fix', $steps = 1)
     {
+        $config = Command::_find($filter, function (& $item) use ($level, $steps) {
+            $version = explode('.', $item['package']['version']);
+            
+            switch ($level)
+            {
+                case '--major':
+                    $version[0] = Command::_increment($version[0], $steps);
+                    break;
+                
+                case '--minor':
+                    $version[1] = Command::_increment($version[1], $steps);
+                    break;
+                
+                case '--fix':
+                    $version[2] = Command::_increment($version[2], $steps);
+                    break;
+                
+                default:
+                    Extra::fatal('Unable to interpret version level. Accepts --major, --minor or --fix(default).');
+            }
+            
+            $is_update_branch = $item['package']['version'] == $item['package']['source']['reference'];
+            Extra::msg('Updated ' . Extra::yellow("[ Package: :package ]\n")
+                . Extra::green('Version') . " : :version_old -> :version_new\n"
+                . Extra::green('Source.Reference') . " : :branch_old -> :branch_new", array(
+                    ':package'         => $item['package']['name'],
+                    ':version_old'     => $item['package']['version'],
+                    ':version_new'     => $item['package']['version'] = implode('.', $version),
+                    ':branch_old'      => $item['package']['source']['reference'],
+                    ':branch_new'      => $item['package']['source']['reference']
+                        = $is_update_branch ? $item['package']['version']: $item['package']['source']['reference']
+            ));
+            
+            if (!$is_update_branch)
+            {
+                Extra::msg("\n" . Extra::red('[Warning!]') . ' The source reference was not updated'
+                    . ' since a different branch name was used. Make sure to ' . Extra::yellow('`git tag`')
+                    . ' the final version and use `set-branch` to the proper version number.');
+            }
+        });
         
+        if (false === $config)
+        {
+            Extra::fatal(
+                'Cannot find package ":name".',
+                array(':name' => $filter)
+            );
+        }
+        
+        Command::_put_config($config);
     }
     
-    public static function action_install()
+    public static function action_up($filter, $level = '--fix')
     {
-        
+        Command::_bump_config($filter, $level);
     }
     
-    public static function action_set_branch()
+    public static function action_down($filter, $level = '--fix')
     {
-        
+        Command::_bump_config($filter, $level, -1);
     }
     
-    public static function action_remove()
+    public static function action_install($name, $require, $repo, $branch)
     {
+        $config = Command::_get_config();
         
+        $find = Command::_find($name, function (& $item) {});
+        
+        if (false !== $find)
+        {
+            Extra::fatal(
+                'Package ":name" already exists.',
+                array(':name' => $name)
+            );
+        }
+        
+        if (empty($config['repositories']))
+        {
+            $config['repositories'];
+        }
+        
+        array_push($config['repositories'], array(
+            'type' => 'package',
+            'package' => array(
+                'name'    => $name,
+                'version' => '0.0.1',
+                'autoload' => array(
+                    'psr-4' => array ('' => '')
+                ),
+                'source' => array(
+                    'type' => 'git',
+                    'url' => $repo,
+                    'reference' => $branch
+                )
+            )
+        ));
+    }
+    
+    public static function action_remove($name)
+    {
+        $config = Command::_find($name, function (& $item, & $config, $i) {
+            unset($config['repositories'][$i]);
+            $config['repositories'] = array_merge($config['repositories']);
+            return false;
+        });
+        
+        if (false === $config)
+        {
+            Extra::fatal(
+                'Cannot find package ":name".',
+                array(':name' => $name)
+            );
+        }
+        
+        Command::_put_config($config);
+    }
+    
+    public static function action_set_branch($filter, $new_branch = null)
+    {
+        $config = Command::_find($filter, function (& $item) use ($new_branch) {
+            
+            if (empty($new_branch))
+            {
+                $new_branch = $item['package']['version'];
+            }
+            
+            Extra::msg('Updated ' . Extra::yellow("[ Package: :package ]\n")
+                . Extra::green('Source.Reference') . " : :branch_old -> :branch_new", array(
+                    ':package'         => $item['package']['name'],
+                    ':branch_old'      => $item['package']['source']['reference'],
+                    ':branch_new'      => $item['package']['source']['reference'] = $new_branch
+            ));
+        });
+        
+        if (false === $config)
+        {
+            Extra::fatal(
+                'Cannot find package ":name".',
+                array(':name' => $filter)
+            );
+        }
+        
+        Command::_put_config($config);
     }
     
     public static function action_list($mode = '--simple', $filter = null)

@@ -1,0 +1,10 @@
+{
+    "output": "compose.phar",
+    "main": "bin.php",
+    "files": [
+        "lib/command.php",
+        "lib/extra.php",
+        "readme.md"
+    ],
+    "stub": true
+}

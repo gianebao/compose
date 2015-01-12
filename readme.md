@@ -13,22 +13,26 @@ list            Lists all packages that are defined in the config file.
 up              Increments the package's version number by 1.
                 
                 Usage:
-                    [--major | --minor | --fix] <name>
+                    <name> [--major | --minor | --fix]
 
 down            Decrements the package's version number by 1.
                 
                 Usage:
-                    [--major | --minor | --fix] <name>
-
-install         Installs a package.
-                
-                Usage:
-                    <name> <require> <source.url> <source.branch>
+                    <name> [--major | --minor | --fix]
 
 set-branch      Update a package's branch
                 
                 Usage:
                     <name> <source.branch>
+                    
+                    # or to synchronize the source.branch and the current version, use:
+                    
+                    <name>
+
+install         Installs a package.
+                
+                Usage:
+                    <name> <require> <source.url> <source.branch>
 
 remove          Removes a package.
                 

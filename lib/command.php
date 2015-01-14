@@ -122,11 +122,11 @@ class Command
             {
                 case '--major':
                     $version[0] = Command::_increment($version[0], $steps);
-                    break;
-                
+                    $version[1] = $steps = 0;
+                    
                 case '--minor':
                     $version[1] = Command::_increment($version[1], $steps);
-                    break;
+                    $version[2] = $steps = 0;
                 
                 case '--fix':
                     $version[2] = Command::_increment($version[2], $steps);

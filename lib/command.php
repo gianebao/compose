@@ -302,6 +302,8 @@ class Command
                     : $config['require'][$name],
                 ':require_new'      => $config['require'][$name] = $require
         ));
+        
+        Command::_put_config($config);
     }
     
     public static function action_list($mode = '--simple', $filter = null)

@@ -177,7 +177,7 @@ class Command
         Command::_bump_config($filter, $level, -1);
     }
     
-    public static function action_install($name, $repo, $branch)
+    public static function action_add($name, $repo, $branch)
     {
         $config = Command::_get_config();
         

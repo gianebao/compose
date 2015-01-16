@@ -35,10 +35,10 @@ set-require     - Update requirements for a package
                 Usage:
                     <name> <require>
 
-install         - Installs a package.
+add             - Installs a package.
                 
                 Usage:
-                    <name> <require> <source.url> <source.branch>
+                    <name> <source.url> <source.branch>
 
 remove          - Removes a package.
                 

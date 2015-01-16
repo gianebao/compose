@@ -223,6 +223,35 @@ class Command
         Command::_put_config($config);
     }
     
+    private static function _tag_filter($tag)
+    {
+        return preg_match('/^\d+\.\d+\.\d+$/', $tag);
+    }
+    
+    public static function action_set_latest()
+    {
+        $config = Command::_get_config();
+        
+        if (empty($config['require']))
+        {
+            $config['require'] = array();
+        }
+        
+        $root = realpath($config['config']['vendor-dir']);
+        
+        foreach ($config['require'] as $repo => $version)
+        {
+            $path = $root . DIRECTORY_SEPARATOR . $repo;
+            $git = "cd $path && git ";
+            
+            var_dump(shell_exec($git . 'describe --abbrev=0'));
+            
+            $tags = explode("\n", trim(shell_exec($git . 'tag')));
+            
+            var_dump(array_filter($tags, 'Command::_tag_filter'));
+        }
+    }
+    
     public static function action_remove($name)
     {
         $config = Command::_find($name, function (& $item, & $config, $i) {

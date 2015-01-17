@@ -167,14 +167,34 @@ class Command
         Command::_put_config($config);
     }
     
-    public static function action_up($filter, $level = '--fix')
+    public static function set_version($name, $version)
     {
-        Command::_bump_config($filter, $level);
-    }
-    
-    public static function action_down($filter, $level = '--fix')
-    {
-        Command::_bump_config($filter, $level, -1);
+        $config = Command::_find($filter, function (& $item) use ($new_branch) {
+            
+            if (empty($new_branch))
+            {
+                $new_branch = $item['package']['version'];
+            }
+            
+            Extra::msg('Updated ' . Extra::yellow("[ Package: :package ]\n")
+                . Extra::green('Version') . " : :version_old -> :version_new"
+                . Extra::green('Require') . " : :require_old -> :require_new"
+                . Extra::green('Source.Reference') . " : :branch_old -> :branch_new", array(
+                    ':package'         => $item['package']['name'],
+                    ':branch_old'      => $item['package']['source']['reference'],
+                    ':branch_new'      => $item['package']['source']['reference'] = $new_branch
+            ));
+        });
+        
+        if (false === $config)
+        {
+            Extra::fatal(
+                'Cannot find package ":name".',
+                array(':name' => $filter)
+            );
+        }
+        
+        Command::_put_config($config);
     }
     
     public static function action_add($name, $repo, $branch)
@@ -228,6 +248,13 @@ class Command
         return preg_match('/^\d+\.\d+\.\d+$/', $tag);
     }
     
+    private static function _ask_input($message, $vars = array())
+    {
+        echo strtr("\n" . Extra::yellow('[Input:] ') . $message . ' ', $vars);
+        $handle = fopen('php://stdin', 'r');
+        return fgets($handle);
+    }
+    
     public static function action_set_latest()
     {
         $config = Command::_get_config();
@@ -244,11 +271,36 @@ class Command
             $path = $root . DIRECTORY_SEPARATOR . $repo;
             $git = "cd $path && git ";
             
-            var_dump(shell_exec($git . 'describe --abbrev=0'));
+            shell_exec($git . 'fetch --prune --tags');
             
-            $tags = explode("\n", trim(shell_exec($git . 'tag')));
+            $current_tag = trim(shell_exec($git . 'describe --abbrev=0'));
             
-            var_dump(array_filter($tags, 'Command::_tag_filter'));
+            $tags = array_filter(
+                explode("\n", trim(shell_exec($git . 'tag'))),
+                'Command::_tag_filter'
+            );
+            
+            Extra::msg(Extra::yellow('[Package: :package]'), array(':package' => $repo));
+            
+            Command::_find($repo, function (& $item, & $config, $i) use (& $tag_detail) {
+                $tag_detail = $item['package'];
+            });
+            
+            $i = in_array($tag_detail['version'], $tags)
+                ? array_search($tag_detail['version'], $tags)
+                : array_search($current_tag, $tags);
+            
+            for (++ $i, $count = count($tags); $i < $count; $i ++)
+            {
+                Extra::msg($tags[$i]);
+            }
+            
+            do
+            {
+                $tag = Command::_ask_input('Up to which version?');
+            } while(!in_array($tag, $tags));
+            
+            $tag;
         }
     }
     

@@ -305,7 +305,22 @@ class Command
         $git = "cd $path && git ";
         
         shell_exec($git . 'fetch --prune --tags --quiet');
-        shell_exec($git . 'checkout --quiet ' . $branch);
+        
+        $branches = explode("\n", shell_exec($git . 'branch'));
+        
+        for ($i = 0, $count = count($branches); $i < $count; $i ++)
+        {
+            $branches[$i] = str_replace('* ', '', trim($branches[$i]));
+        }
+        
+        if (in_array($branch, $branches))
+        {
+            shell_exec($git . 'checkout --quiet ' . $branch);
+        }
+        else
+        {
+            shell_exec($git . 'checkout --quiet --track origin/' . $branch);
+        }
         
         $tag = trim(shell_exec($git . 'describe --tags --abbrev=0'));
         
@@ -313,12 +328,15 @@ class Command
             $tag_detail = $item['package'];
         });
         
+        Extra::msg(Extra::yellow('[Package: :package]'), array(':package' => $repo));
+        
         if ($tag == $tag_detail['source']['reference'])
         {
+            Extra::msg("Package is up to date. Skipping :tag..\n", array(
+                ':tag' => Extra::green($tag)
+            ));
             return false;
         }
-        
-        Extra::msg(Extra::yellow('[Package: :package]'), array(':package' => $repo));
         
         Extra::msg("Setting to branch: :tag\n", array(
             ':tag' => Extra::green($tag)

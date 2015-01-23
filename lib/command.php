@@ -5,9 +5,12 @@ class Command
     const _FN_PREFIX = 'action_';
     const _TEXT_NOT_REQUIRED = '--NOT REQUIRED--';
     private static $_config = 'composer.json';
+    private static $_root = null;
     
     public static function factory($execute, $params)
     {
+        Command::_get_config();
+        
         $execute = strtolower($execute);
         
         if (0 === strpos($execute, '_') || !method_exists('Command', Command::_to_method($execute)))
@@ -48,6 +51,8 @@ class Command
                 array(':file' => $config)
             );
         }
+        
+        Command::$_root = realpath($config['config']['vendor-dir']);
         
         return $config;
     }
@@ -167,22 +172,27 @@ class Command
         Command::_put_config($config);
     }
     
-    public static function set_version($name, $version)
+    public static function action_set_version($name, $version = null)
     {
-        $config = Command::_find($filter, function (& $item) use ($new_branch) {
+        $config = Command::_find($name, function (& $item, & $config) use ($version) {
             
-            if (empty($new_branch))
+            if (empty($version))
             {
-                $new_branch = $item['package']['version'];
+                $version = $item['package']['version'];
             }
             
             Extra::msg('Updated ' . Extra::yellow("[ Package: :package ]\n")
-                . Extra::green('Version') . " : :version_old -> :version_new"
-                . Extra::green('Require') . " : :require_old -> :require_new"
-                . Extra::green('Source.Reference') . " : :branch_old -> :branch_new", array(
+                . Extra::green('Version') . " : :version_old -> :version_new\n"
+                . Extra::green('Require') . " : :require\n"
+                . Extra::green('Source.Reference') . " : :branch_old -> :branch_new\n", array(
                     ':package'         => $item['package']['name'],
+                    ':require'         => !empty($config['require'][$item['package']['name']])
+                        ? $config['require'][$item['package']['name']]
+                        : Extra::red(Command::_TEXT_NOT_REQUIRED),
+                    ':version_old'     => $item['package']['version'],
+                    ':version_new'     => $item['package']['version'] = $version,
                     ':branch_old'      => $item['package']['source']['reference'],
-                    ':branch_new'      => $item['package']['source']['reference'] = $new_branch
+                    ':branch_new'      => $item['package']['source']['reference'] = $version
             ));
         });
         
@@ -190,7 +200,7 @@ class Command
         {
             Extra::fatal(
                 'Cannot find package ":name".',
-                array(':name' => $filter)
+                array(':name' => $name)
             );
         }
         
@@ -247,6 +257,11 @@ class Command
     {
         return preg_match('/^\d+\.\d+\.\d+$/', $tag);
     }
+
+    private static function _tag_filter_minor($tag)
+    {
+        return preg_match('/^\d+\.\d+\.0$/', $tag);
+    }
     
     private static function _ask_input($message, $vars = array())
     {
@@ -255,7 +270,7 @@ class Command
         return fgets($handle);
     }
     
-    public static function action_set_latest()
+    public static function action_set_latest($stage = '--fix')
     {
         $config = Command::_get_config();
         
@@ -264,44 +279,68 @@ class Command
             $config['require'] = array();
         }
         
-        $root = realpath($config['config']['vendor-dir']);
-        
         foreach ($config['require'] as $repo => $version)
         {
-            $path = $root . DIRECTORY_SEPARATOR . $repo;
-            $git = "cd $path && git ";
-            
-            shell_exec($git . 'fetch --prune --tags');
-            
-            $current_tag = trim(shell_exec($git . 'describe --abbrev=0'));
-            
-            $tags = array_filter(
-                explode("\n", trim(shell_exec($git . 'tag'))),
-                'Command::_tag_filter'
-            );
-            
-            Extra::msg(Extra::yellow('[Package: :package]'), array(':package' => $repo));
-            
-            Command::_find($repo, function (& $item, & $config, $i) use (& $tag_detail) {
-                $tag_detail = $item['package'];
-            });
-            
-            $i = in_array($tag_detail['version'], $tags)
-                ? array_search($tag_detail['version'], $tags)
-                : array_search($current_tag, $tags);
-            
-            for (++ $i, $count = count($tags); $i < $count; $i ++)
+            if (false === Command::action_set_latest_package($repo, $stage))
             {
-                Extra::msg($tags[$i]);
+                continue;
             }
-            
-            do
-            {
-                $tag = Command::_ask_input('Up to which version?');
-            } while(!in_array($tag, $tags));
-            
-            $tag;
         }
+    }
+    
+    public static function action_set_latest_package($repo, $stage = '--fix')
+    {
+        $path = Command::$_root . DIRECTORY_SEPARATOR . $repo;
+        
+        if (!is_dir($path) || !is_file($path . DIRECTORY_SEPARATOR . '.git' . DIRECTORY_SEPARATOR . 'config'))
+        {
+            Extra::fatal(
+                'Cannot find package ":name".',
+                array(':name' => $repo)
+            );
+        }
+        
+        $git = "cd $path && git ";
+        
+        shell_exec($git . 'fetch --prune --tags --quiet');
+        
+        $current_tag = trim(shell_exec($git . 'describe --tags --abbrev=0'));
+        
+        $tags = array_filter(
+            explode("\n", trim(shell_exec($git . 'tag'))),
+            '--minor' === $stage ? 'Command::_tag_filter_minor': 'Command::_tag_filter'
+        );
+        
+        $tags = array_merge($tags);
+        
+        Command::_find($repo, function (& $item, & $config, $i) use (& $tag_detail) {
+            $tag_detail = $item['package'];
+        });
+        
+        $i = in_array($tag_detail['version'], $tags)
+            ? array_search($tag_detail['version'], $tags)
+            : array_search($current_tag, $tags);
+        
+        $tags = array_slice($tags, ++$i);
+        
+        if (empty($tags))
+        {
+            return false;
+        }
+        
+        Extra::msg(Extra::yellow('[Package: :package]'), array(':package' => $repo));
+        Extra::msg('Updates found: [' . implode(', ', $tags) . ']');
+        
+        $tag = array_pop($tags);
+        
+        Extra::msg("Setting to latest: :tag\n", array(
+            ':tag' => Extra::green($tag)
+        ));
+        
+        Command::action_set_version($repo, $tag);
+        Command::action_set_require($repo);
+        
+        echo "\n";
     }
     
     public static function action_remove($name)
@@ -356,11 +395,13 @@ class Command
         Command::_put_config($config);
     }
     
-    public static function action_set_require($name, $require)
+    public static function action_set_require($name, $require = null)
     {
         $config = Command::_get_config();
         
-        $find = Command::_find($name, function (& $item) {});
+        $find = Command::_find($name, function (& $item) use (& $version) {
+            $version = $item['package']['version'];
+        });
         
         if (false === $find)
         {
@@ -368,6 +409,11 @@ class Command
                 'Cannot find package ":name".',
                 array(':name' => $name)
             );
+        }
+        
+        if (empty($require))
+        {
+            $require = $version;
         }
         
         if (empty($config['repositories']))

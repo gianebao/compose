@@ -270,7 +270,7 @@ class Command
         return fgets($handle);
     }
     
-    public static function action_set_latest($stage = '--fix')
+    public static function action_set_latest($branch = 'master')
     {
         $config = Command::_get_config();
         
@@ -281,14 +281,16 @@ class Command
         
         foreach ($config['require'] as $repo => $version)
         {
-            if (false === Command::action_set_latest_package($repo, $stage))
+            if (false === Command::action_set_latest_package($repo, $branch))
             {
                 continue;
             }
+            
+            Extra::msg("\n");
         }
     }
     
-    public static function action_set_latest_package($repo, $stage = '--fix')
+    public static function action_set_latest_package($repo, $branch = 'master')
     {
         $path = Command::$_root . DIRECTORY_SEPARATOR . $repo;
         
@@ -303,44 +305,27 @@ class Command
         $git = "cd $path && git ";
         
         shell_exec($git . 'fetch --prune --tags --quiet');
+        shell_exec($git . 'checkout --quiet ' . $branch);
         
-        $current_tag = trim(shell_exec($git . 'describe --tags --abbrev=0'));
-        
-        $tags = array_filter(
-            explode("\n", trim(shell_exec($git . 'tag'))),
-            '--minor' === $stage ? 'Command::_tag_filter_minor': 'Command::_tag_filter'
-        );
-        
-        $tags = array_merge($tags);
+        $tag = trim(shell_exec($git . 'describe --tags --abbrev=0'));
         
         Command::_find($repo, function (& $item, & $config, $i) use (& $tag_detail) {
             $tag_detail = $item['package'];
         });
         
-        $i = in_array($tag_detail['version'], $tags)
-            ? array_search($tag_detail['version'], $tags)
-            : array_search($current_tag, $tags);
-        
-        $tags = array_slice($tags, ++$i);
-        
-        if (empty($tags))
+        if ($tag == $tag_detail['source']['reference'])
         {
             return false;
         }
         
         Extra::msg(Extra::yellow('[Package: :package]'), array(':package' => $repo));
-        Extra::msg('Updates found: [' . implode(', ', $tags) . ']');
         
-        $tag = array_pop($tags);
-        
-        Extra::msg("Setting to latest: :tag\n", array(
+        Extra::msg("Setting to branch: :tag\n", array(
             ':tag' => Extra::green($tag)
         ));
         
         Command::action_set_version($repo, $tag);
         Command::action_set_require($repo);
-        
-        echo "\n";
     }
     
     public static function action_remove($name)

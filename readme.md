@@ -48,15 +48,15 @@ set-version             - Update package's version and source.branch
                             
                             <name>
                         
-set-latest              - Set the entire package to the latest (minor or fix) version. Default is fix.
+set-latest              - Sets every package to the latest available tag that can be retrieved from the branch. Default is `master`.
                         
                         Usage:
-                            [--minor | --fix]
+                            [source.branch]
                     
-set-latest-package      - Set the entire package to the latest (minor or fix) version. Default is fix.
+set-latest-package      - Sets the package to the latest available tag that can be retrieved from the branch. Default is `master`.
                         
                         Usage:
-                            [--minor | --fix]
+                            <name> [source.branch]
                         
                         
 add                     - Installs a package.

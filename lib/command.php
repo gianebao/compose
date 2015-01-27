@@ -292,6 +292,8 @@ class Command
     
     public static function action_set_latest_package($repo, $branch = 'master')
     {
+        Extra::msg(Extra::yellow('[Package: :package]'), array(':package' => $repo));
+        
         $path = Command::$_root . DIRECTORY_SEPARATOR . $repo;
         
         if (!is_dir($path) || !is_file($path . DIRECTORY_SEPARATOR . '.git' . DIRECTORY_SEPARATOR . 'config'))
@@ -304,7 +306,8 @@ class Command
         
         $git = "cd $path && git ";
         
-        shell_exec($git . 'fetch --prune --tags --quiet');
+        echo '.';
+        shell_exec($git . 'fetch origin --prune --tags --quiet');
         
         $branches = explode("\n", shell_exec($git . 'branch'));
         
@@ -321,18 +324,22 @@ class Command
         {
             shell_exec($git . 'checkout --quiet --track origin/' . $branch);
         }
+
+        echo '.';
+        
+        shell_exec($git . 'pull --quiet');
+        echo '.';
         
         $tag = trim(shell_exec($git . 'describe --tags --abbrev=0'));
+        echo '.';
         
         Command::_find($repo, function (& $item, & $config, $i) use (& $tag_detail) {
             $tag_detail = $item['package'];
         });
         
-        Extra::msg(Extra::yellow('[Package: :package]'), array(':package' => $repo));
-        
         if ($tag == $tag_detail['source']['reference'])
         {
-            Extra::msg("Package is up to date. Skipping :tag..\n", array(
+            Extra::msg("Package is up to date. Skipping :tag\n", array(
                 ':tag' => Extra::green($tag)
             ));
             return false;
